@@ -48,7 +48,7 @@ public class RBACbot{
         System.out.println("Creating the ''current'' user...");
         User freeTestUser = new User("Elena", freeRole);
         User registeredTestUser = new User("Jordi", registeredRole);
-        User currentUser = freeTestUser;
+        User currentUser = registeredTestUser;
 
         /*
          * INTENTS definition
