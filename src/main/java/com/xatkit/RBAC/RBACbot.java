@@ -1,14 +1,9 @@
 package com.xatkit.RBAC;
 
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.HashMap;
-
 import com.xatkit.core.XatkitBot;
 import com.xatkit.plugins.react.platform.ReactPlatform;
 import com.xatkit.plugins.react.platform.io.ReactEventProvider;
 import com.xatkit.plugins.react.platform.io.ReactIntentProvider;
-import com.xatkit.library.core.CoreLibrary;
 import lombok.val;
 import org.apache.commons.configuration2.BaseConfiguration;
 import org.apache.commons.configuration2.Configuration;
@@ -40,8 +35,8 @@ public class RBACbot{
         System.out.println("Creating policy rules...");
         PolicyRules policyRules = new PolicyRules();
         policyRules.addPermission(freeRole,matching,greetingsIntent);
-        policyRules.addPermission(registeredRole,matching,greetingsIntent);
         policyRules.addPermission(freeRole,matching,howIsTheWeatherTodayIntent);
+        policyRules.addPermission(registeredRole,matching,greetingsIntent);
         policyRules.addPermission(registeredRole,matching,howIsTheWeatherTodayIntent);
         policyRules.addPermission(registeredRole,matching,historicalWeatherIntent);
         //Creating the "current" user
@@ -65,7 +60,7 @@ public class RBACbot{
                 .parameter("cityName").fromFragment("CITY").entity(city());
 
         val historicalWeather = intent("HistoricalWeather")
-                .trainingSentence("How has been the weather during PERIOD in CITY?")
+                .trainingSentence("How was the weather PERIOD in CITY?")
                 .parameter("timePeriod").fromFragment("PERIOD").entity(timePeriod())
                 .parameter("cityName").fromFragment("CITY").entity(city());
 
@@ -116,7 +111,7 @@ public class RBACbot{
 
         printTodaysWeather
                 .body(context -> {
-                    reactPlatform.reply(context, "The forecast today in " + context.getIntent().getValue("cityName") + " is ...");
+                    reactPlatform.reply(context, "The forecast for today in " + context.getIntent().getValue("cityName") + " is ...");
                     /*String cityName = (String) context.getIntent().getValue("cityName");
                     Map<String, Object> queryParameters = new HashMap<>();
                     queryParameters.put("q", cityName);
