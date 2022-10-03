@@ -1,0 +1,11 @@
+p, anonymous, greetings, match
+p, anonymous, getProductInformation, match
+
+p, customer, greetings, match
+p, customer, getProductInformation, match
+p, customer, trackMyOrder, match
+
+p, employee, greetings, match
+p, employee, getProductInformation, match
+p, employee, trackMyOrder, match
+p, employee, getEmployeeMonthlyGoals, match
