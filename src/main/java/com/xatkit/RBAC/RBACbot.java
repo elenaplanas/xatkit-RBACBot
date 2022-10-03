@@ -19,7 +19,7 @@ public class RBACbot{
          * RBAC initializations
          */
         //Create roles
-        System.out.println("Creating roles...");
+    /*    System.out.println("Creating roles...");
         Role freeRole = new Role("FreeRole");
         Role registeredRole = new Role("RegisteredRole");
         //Create actions
@@ -29,7 +29,7 @@ public class RBACbot{
         //Create resources
         System.out.println("Creating resources...");
         Resource greetingsIntent = new Resource("Greetings",ResourceType.INTENT);
-        Resource howIsTheWeatherTodayIntent = new Resource("HowIsTheWeatherToday",ResourceType.INTENT);
+        Resource howIsTheWeatherTodayIntent = new Resource("GetProductInformation",ResourceType.INTENT);
         Resource historicalWeatherIntent = new Resource("HistoricalWeather",ResourceType.INTENT);
         //Create policy rules
         System.out.println("Creating policy rules...");
@@ -43,26 +43,38 @@ public class RBACbot{
         System.out.println("Creating the ''current'' user...");
         User freeTestUser = new User("Elena", freeRole);
         User registeredTestUser = new User("Jordi", registeredRole);
-        User currentUser = registeredTestUser;
-
+        User currentUser = freeTestUser;
+*/
         /*
          * INTENTS definition
          */
         val greetings = intent("Greetings")
-            .trainingSentence("Hi")
-            .trainingSentence("Hello")
-            .trainingSentence("Good morning")
-            .trainingSentence("Good afternoon");
+                .trainingSentence("Hi")
+                .trainingSentence("Hey")
+                .trainingSentence("Hello")
+                .trainingSentence("Good morning")
+                .trainingSentence("Good afternoon")
+                .trainingSentence("Good afternoon");
 
-        val howIsTheWeatherToday = intent("HowIsTheWeatherToday")
-                .trainingSentence("How is the weather today in CITY?")
-                .trainingSentence("What is the forecast for today in CITY?")
-                .parameter("cityName").fromFragment("CITY").entity(city());
+        val getProductInformation = intent("GetProductInformation")
+                .trainingSentence("I want information about PRODUCT")
+                .trainingSentence("I want more information about PRODUCT")
+                .trainingSentence("Have you got PRODUCT?")
+                .trainingSentence("Do you have PRODUCT?")
+                .trainingSentence("I want to see PRODUCT")
+                .trainingSentence("Tell me about PRODUCT")
+                .parameter("product").fromFragment("PRODUCT").entity(any());
 
-        val historicalWeather = intent("HistoricalWeather")
-                .trainingSentence("How was the weather PERIOD in CITY?")
-                .parameter("timePeriod").fromFragment("PERIOD").entity(timePeriod())
-                .parameter("cityName").fromFragment("CITY").entity(city());
+        val trackMyOrder = intent("TrackMyOrder")
+                .trainingSentence("I want to see where is the order ID")
+                .trainingSentence("Where is the order ID?")
+                .trainingSentence("When the order ID will arrive?")
+                .parameter("order").fromFragment("ID").entity(number());
+
+        val getWorkerMonthlyGoals = intent("GetWorkerMonthlyGoals")
+                .trainingSentence("I want to see my goals")
+                .trainingSentence("I want to see the progress of my goals")
+                .trainingSentence("I want to see the achievement of my goals");
 
         ReactPlatform reactPlatform = new ReactPlatform();
         ReactEventProvider reactEventProvider = new ReactEventProvider(reactPlatform);
@@ -74,8 +86,9 @@ public class RBACbot{
         val init = state("Init");
         val awaitingInput = state("AwaitingInput");
         val handleWelcome = state("HandleWelcome");
-        val printTodaysWeather = state("PrintTodaysWeather");
-        val printHistoricalWeather = state("PrintHistoricalWeather");
+        val printProductInformation = state("PrintProductInformation");
+        val printOrderStatus = state("PrintOrderStatus");
+        val printWorkerMonthlyGoals = state("PrintWorkerMonthlyGoals");
         val informAboutPermissions = state("InformAboutPermissions");
 
 
@@ -86,32 +99,42 @@ public class RBACbot{
         awaitingInput
                 .next()
                     //move to handledWelcome when the Greetings intent is matched && the user has permission to achieve this intent
-                    .when(intentIs(greetings).and(c -> policyRules.checkPermission(currentUser.getRole().getName(),"matching","Greetings"))).moveTo(handleWelcome)
-                    //move to printTodaysWeather when the HowIsTheWeatherToday intent is matched && the user has permission to achieve this intent
-                    .when(intentIs(howIsTheWeatherToday).and(c -> policyRules.checkPermission(currentUser.getRole().getName(),"matching","HowIsTheWeatherToday"))).moveTo(printTodaysWeather)
-                    //move to printHistoricalWeather when the HistoricalWeatherIntent intent is matched && the user has permission to achieve this intent
-                    .when(intentIs(historicalWeather).and(c -> policyRules.checkPermission(currentUser.getRole().getName(),"matching","HistoricalWeather"))).moveTo(printHistoricalWeather)
-                    //move to informAboutPermissions when the HistoricalWeatherIntent intent is matched && the user has not permission to achieve this intent
-                    .when(intentIs(historicalWeather).and(c -> !policyRules.checkPermission(currentUser.getRole().getName(),"matching","HistoricalWeather"))).moveTo(informAboutPermissions);
+                    //.when(intentIs(greetings).and(c -> policyRules.checkPermission(currentUser.getRole().getName(),"matching","Greetings"))).moveTo(handleWelcome)
+                    .when(intentIs(greetings)).moveTo(handleWelcome)
+
+                    //move to printTodaysWeather when the getProductInformation intent is matched && the user has permission to achieve this intent
+                    //.when(intentIs(getProductInformation).and(c -> policyRules.checkPermission(currentUser.getRole().getName(),"matching","HowIsTheWeatherToday"))).moveTo(printTodaysWeather)
+                    .when(intentIs(getProductInformation)).moveTo(printProductInformation)
+
+                    //move to printOrderStatus when the TrackMyOrder intent is matched && the user has permission to achieve this intent
+                    //.when(intentIs(trackMyOrder).and(c -> policyRules.checkPermission(currentUser.getRole().getName(),"matching","HistoricalWeather"))).moveTo(printHistoricalWeather)
+                    .when(intentIs(trackMyOrder)).moveTo(printOrderStatus)
+
+                    .when(intentIs(getWorkerMonthlyGoals)).moveTo(printWorkerMonthlyGoals);
+
+                    //move to informAboutPermissions when the TrackMyOrder intent is matched && the user has not permission to achieve this intent
+                    //.when(intentIs(trackMyOrder).and(c -> !policyRules.checkPermission(currentUser.getRole().getName(),"matching","HistoricalWeather"))).moveTo(informAboutPermissions);
+                    //.when(intentIs(trackMyOrder)).moveTo(informAboutPermissions);
+
 
         handleWelcome
                 //This state provides different messages depending on the user role
                 .body(context -> {
                     //Welcome message for free users
-                    if (currentUser.getRole().getName() == "FreeRole"){
+                    //if (currentUser.getRole().getName() == "FreeRole"){
                         reactPlatform.reply(context, "Hi! Welcome to our platform!");
-                    }
+                   // }
                     //Welcome message for registered users
-                    else if (currentUser.getRole().getName() == "RegisteredRole"){
-                        reactPlatform.reply(context, "Hi " + currentUser.getName() + "! Welcome again to our platform!");
-                    }
+                    //else if (currentUser.getRole().getName() == "RegisteredRole"){
+                    //    reactPlatform.reply(context, "Hi " + currentUser.getName() + "! Welcome again to our platform!");
+                   // }
                 })
                 .next()
                 .moveTo(awaitingInput);
 
-        printTodaysWeather
+        printProductInformation
                 .body(context -> {
-                    reactPlatform.reply(context, "The forecast for today in " + context.getIntent().getValue("cityName") + " is ...");
+                    reactPlatform.reply(context, "We have the following types of " + context.getIntent().getValue("product") + "...");
                     /*String cityName = (String) context.getIntent().getValue("cityName");
                     Map<String, Object> queryParameters = new HashMap<>();
                     queryParameters.put("q", cityName);
@@ -146,8 +169,13 @@ public class RBACbot{
                 .next()
                 .moveTo(awaitingInput);
 
-        printHistoricalWeather
-                .body(context -> reactPlatform.reply(context, "The forecast in " + context.getIntent().getValue("cityName") + " during the period " + context.getIntent().getValue("timePeriod") + " is ..."))
+        printOrderStatus
+                .body(context -> reactPlatform.reply(context, "The order " + context.getIntent().getValue("order") + " is in ... right now and it will arrive on ..."))
+                .next()
+                .moveTo(awaitingInput);
+
+        printWorkerMonthlyGoals
+                .body(context -> reactPlatform.reply(context, "Your monthly goals have been reached by XXX%. Keep working!"))
                 .next()
                 .moveTo(awaitingInput);
 
