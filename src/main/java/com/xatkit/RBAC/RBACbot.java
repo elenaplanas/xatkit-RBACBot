@@ -8,6 +8,16 @@ import lombok.val;
 import org.apache.commons.configuration2.BaseConfiguration;
 import org.apache.commons.configuration2.Configuration;
 
+import org.casbin.jcasbin.exception.CasbinNameNotExistException;
+import org.casbin.jcasbin.model.Assertion;
+import org.casbin.jcasbin.model.FunctionMap;
+import org.casbin.jcasbin.model.Model;
+import org.casbin.jcasbin.persist.Adapter;
+import org.casbin.jcasbin.persist.file_adapter.FileAdapter;
+import org.casbin.jcasbin.rbac.RoleManager;
+import org.casbin.jcasbin.main.Enforcer;
+
+
 import static com.xatkit.dsl.DSL.*;
 
 
@@ -15,36 +25,6 @@ public class RBACbot{
 
     public static void main(String[] args) {
 
-        /*
-         * RBAC initializations
-         */
-        //Create roles
-    /*    System.out.println("Creating roles...");
-        Role freeRole = new Role("FreeRole");
-        Role registeredRole = new Role("RegisteredRole");
-        //Create actions
-        System.out.println("Creating actions...");
-        Action matching = new Action("matching", ActionType.MATCHING);
-        Action transition = new Action("transition", ActionType.TRANSITION_NAVIGATION);
-        //Create resources
-        System.out.println("Creating resources...");
-        Resource greetingsIntent = new Resource("Greetings",ResourceType.INTENT);
-        Resource howIsTheWeatherTodayIntent = new Resource("GetProductInformation",ResourceType.INTENT);
-        Resource historicalWeatherIntent = new Resource("HistoricalWeather",ResourceType.INTENT);
-        //Create policy rules
-        System.out.println("Creating policy rules...");
-        PolicyRules policyRules = new PolicyRules();
-        policyRules.addPermission(freeRole,matching,greetingsIntent);
-        policyRules.addPermission(freeRole,matching,howIsTheWeatherTodayIntent);
-        policyRules.addPermission(registeredRole,matching,greetingsIntent);
-        policyRules.addPermission(registeredRole,matching,howIsTheWeatherTodayIntent);
-        policyRules.addPermission(registeredRole,matching,historicalWeatherIntent);
-        //Creating the "current" user
-        System.out.println("Creating the ''current'' user...");
-        User freeTestUser = new User("Elena", freeRole);
-        User registeredTestUser = new User("Jordi", registeredRole);
-        User currentUser = freeTestUser;
-*/
         /*
          * INTENTS definition
          */
@@ -71,7 +51,7 @@ public class RBACbot{
                 .trainingSentence("When the order ID will arrive?")
                 .parameter("order").fromFragment("ID").entity(number());
 
-        val getWorkerMonthlyGoals = intent("GetWorkerMonthlyGoals")
+        val getEmployeeMonthlyGoals = intent("GetEmployeeMonthlyGoals")
                 .trainingSentence("I want to see my goals")
                 .trainingSentence("I want to see the progress of my goals")
                 .trainingSentence("I want to see the achievement of my goals");
@@ -81,6 +61,15 @@ public class RBACbot{
         ReactIntentProvider reactIntentProvider = new ReactIntentProvider(reactPlatform);
 
         /*
+         * POLICY ENFORCEMENT
+         */
+        Enforcer enforcer = new Enforcer("./src/RBAC/rbac_model.conf", "./src/RBAC/rbac_policy.csv");
+
+        String role = "employee"; // the role of the user that wants to access a resource
+        //String resource = "getMyEarnings"; // the resource that is going to be accessed
+        String action = "match"; // the operation that the user performs on the resource
+
+        /*
          * STATES of the bot
          */
         val init = state("Init");
@@ -88,46 +77,45 @@ public class RBACbot{
         val handleWelcome = state("HandleWelcome");
         val printProductInformation = state("PrintProductInformation");
         val printOrderStatus = state("PrintOrderStatus");
-        val printWorkerMonthlyGoals = state("PrintWorkerMonthlyGoals");
+        val printEmployeeMonthlyGoals = state("PrintEmployeeMonthlyGoals");
         val informAboutPermissions = state("InformAboutPermissions");
-
 
         init
                 .next()
-                    .when(eventIs(ReactEventProvider.ClientReady)).moveTo(awaitingInput);
+                .when(eventIs(ReactEventProvider.ClientReady)).moveTo(awaitingInput);
 
         awaitingInput
                 .next()
-                    //move to handledWelcome when the Greetings intent is matched && the user has permission to achieve this intent
-                    //.when(intentIs(greetings).and(c -> policyRules.checkPermission(currentUser.getRole().getName(),"matching","Greetings"))).moveTo(handleWelcome)
-                    .when(intentIs(greetings)).moveTo(handleWelcome)
+                //move to handledWelcome when the Greetings intent is matched && the user has permissions to reach this intent
+                .when(intentIs(greetings).and(c -> enforcer.enforce(role,"greetings",action))).moveTo(handleWelcome)
 
-                    //move to printTodaysWeather when the getProductInformation intent is matched && the user has permission to achieve this intent
-                    //.when(intentIs(getProductInformation).and(c -> policyRules.checkPermission(currentUser.getRole().getName(),"matching","HowIsTheWeatherToday"))).moveTo(printTodaysWeather)
-                    .when(intentIs(getProductInformation)).moveTo(printProductInformation)
+                //move to printProductInformation when the getProductInformation intent is matched && the user has permission to reach this intent
+                .when(intentIs(getProductInformation).and(c -> enforcer.enforce(role,"getProductInformation",action))).moveTo(printProductInformation)
 
-                    //move to printOrderStatus when the TrackMyOrder intent is matched && the user has permission to achieve this intent
-                    //.when(intentIs(trackMyOrder).and(c -> policyRules.checkPermission(currentUser.getRole().getName(),"matching","HistoricalWeather"))).moveTo(printHistoricalWeather)
-                    .when(intentIs(trackMyOrder)).moveTo(printOrderStatus)
+                //move to printOrderStatus when the TrackMyOrder intent is matched && the user has permission to reach this intent
+                .when(intentIs(trackMyOrder).and(c -> enforcer.enforce(role,"trackMyOrder",action))).moveTo(printOrderStatus)
 
-                    .when(intentIs(getWorkerMonthlyGoals)).moveTo(printWorkerMonthlyGoals);
+                //move to printEmployeeMonthlyGoals when the GetEmployeeMonthlyGoals intent is matched && the user has permission to reach this intent
+                .when(intentIs(getEmployeeMonthlyGoals).and(c -> enforcer.enforce(role,"getEmployeeMonthlyGoals",action))).moveTo(printEmployeeMonthlyGoals)
 
-                    //move to informAboutPermissions when the TrackMyOrder intent is matched && the user has not permission to achieve this intent
-                    //.when(intentIs(trackMyOrder).and(c -> !policyRules.checkPermission(currentUser.getRole().getName(),"matching","HistoricalWeather"))).moveTo(informAboutPermissions);
-                    //.when(intentIs(trackMyOrder)).moveTo(informAboutPermissions);
+                //move to informAboutPermissions otherwise (when any intent is matched && the user has not permission to reach it)
+                .when(intentIs(greetings).and(c -> !enforcer.enforce(role,"greetings",action)).or(intentIs(getProductInformation).and(c -> !enforcer.enforce(role,"getProductInformation",action))).or(intentIs(trackMyOrder).and(c -> !enforcer.enforce(role,"trackMyOrder",action))).or(intentIs(getEmployeeMonthlyGoals).and(c -> !enforcer.enforce(role,"getEmployeeMonthlyGoals",action)))).moveTo(informAboutPermissions);
 
 
         handleWelcome
                 //This state provides different messages depending on the user role
                 .body(context -> {
                     //Welcome message for free users
-                    //if (currentUser.getRole().getName() == "FreeRole"){
-                        reactPlatform.reply(context, "Hi! Welcome to our platform!");
-                   // }
+                    if (role == "anonymous"){
+                        reactPlatform.reply(context, "Hi. Welcome to our online shop!");
+                    }
                     //Welcome message for registered users
-                    //else if (currentUser.getRole().getName() == "RegisteredRole"){
-                    //    reactPlatform.reply(context, "Hi " + currentUser.getName() + "! Welcome again to our platform!");
-                   // }
+                    else if (role == "customer"){
+                        reactPlatform.reply(context, "Hi customer. Welcome again to our online shop!");
+                    }
+                    else if (role == "employee"){
+                        reactPlatform.reply(context, "Hi employee. Happy to see you!");
+                    }
                 })
                 .next()
                 .moveTo(awaitingInput);
@@ -135,52 +123,22 @@ public class RBACbot{
         printProductInformation
                 .body(context -> {
                     reactPlatform.reply(context, "We have the following types of " + context.getIntent().getValue("product") + "...");
-                    /*String cityName = (String) context.getIntent().getValue("cityName");
-                    Map<String, Object> queryParameters = new HashMap<>();
-                    queryParameters.put("q", cityName);
-                    ApiResponse<JsonElement> response = restPlatform.getJsonRequest(context, "http://api" +
-                                    ".openweathermap.org/data/2.5/weather", queryParameters, Collections.emptyMap(),
-                            Collections.emptyMap());
-                    if (response.getStatus() == 200) {
-                        long temp = Math.round(response.getBody().getAsJsonObject().get("main").getAsJsonObject().get(
-                                "temp").getAsDouble());
-                        long tempMin =
-                                Math.round(response.getBody().getAsJsonObject().get("main").getAsJsonObject().get(
-                                        "temp_min").getAsDouble());
-                        long tempMax =
-                                Math.round(response.getBody().getAsJsonObject().get("main").getAsJsonObject().get(
-                                        "temp_max").getAsDouble());
-                        String weather =
-                                response.getBody().getAsJsonObject().get("weather").getAsJsonArray().get(0).getAsJsonObject().get("description").getAsString();
-                        String weatherIcon =
-                                "http://openweathermap.org/img/wn/" + response.getBody().getAsJsonObject().get(
-                                        "weather").getAsJsonArray().get(0).getAsJsonObject().get("icon").getAsString() + ".png";
-                        reactPlatform.reply(context, MessageFormat.format("The current weather is {0} &deg;C with " +
-                                        "{1} ![{1}]({2}) with a high of {3} &deg;C and a low of {4} &deg;C", temp,
-                                weather,
-                                weatherIcon, tempMax, tempMin));
-                    } else if (response.getStatus() == 400) {
-                        reactPlatform.reply(context, "Oops, I couldn't find this city");
-                    } else {
-                        reactPlatform.reply(context, "Sorry, an error " +  response.getStatus() + " " + response.getStatusText() + " occurred when accessing the openweathermap service");
-                    }
-                */
                 })
                 .next()
                 .moveTo(awaitingInput);
 
         printOrderStatus
-                .body(context -> reactPlatform.reply(context, "The order " + context.getIntent().getValue("order ") + " is in... right now and it will arrive on ..."))
+                .body(context -> reactPlatform.reply(context, "The order " + context.getIntent().getValue("order") + " is in ... right now and it will arrive on ..."))
                 .next()
                 .moveTo(awaitingInput);
 
-        printWorkerMonthlyGoals
+        printEmployeeMonthlyGoals
                 .body(context -> reactPlatform.reply(context, "Your monthly goals have been reached by XXX%. Keep working!"))
                 .next()
                 .moveTo(awaitingInput);
 
         informAboutPermissions
-                .body(context -> reactPlatform.reply(context, "You must be registered to obtain this information"))
+                .body(context -> reactPlatform.reply(context, "You do not have permissions to see this information."))
                 .next()
                 .moveTo(awaitingInput);
 
