@@ -170,7 +170,7 @@ public class RBACbot{
                 .moveTo(awaitingInput);
 
         printOrderStatus
-                .body(context -> reactPlatform.reply(context, "The order " + context.getIntent().getValue("order") + " is in... right now and it will arrive on ..."))
+                .body(context -> reactPlatform.reply(context, "The order " + context.getIntent().getValue("order ") + " is in... right now and it will arrive on ..."))
                 .next()
                 .moveTo(awaitingInput);
 
