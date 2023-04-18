@@ -7,13 +7,8 @@ import com.xatkit.plugins.react.platform.io.ReactIntentProvider;
 import lombok.val;
 import org.apache.commons.configuration2.BaseConfiguration;
 import org.apache.commons.configuration2.Configuration;
-import java.util.Random;
-
 import org.casbin.jcasbin.main.Enforcer;
-
-
 import static com.xatkit.dsl.DSL.*;
-
 
 public class RBACbot{
 
@@ -22,32 +17,29 @@ public class RBACbot{
         /*
          * INTENTS definition
          */
+        val findProductIntent = intent("FindProductIntent")
+                .trainingSentence("I want information about PRODUCT_TYPE")
+                .trainingSentence("Have you got PRODUCT_TYPE?")
+                .trainingSentence("Do you have PRODUCT_TYPE?")
+                .trainingSentence("I want to see PRODUCT_TYPE")
+                .parameter("productType").fromFragment("PRODUCT_TYPE").entity(any());
 
-        val getProductInformation = intent("GetProductInformation")
-                .trainingSentence("I want information about PRODUCT")
+        val getProductDetailsIntent = intent("GetProductDetailsIntent")
+                .trainingSentence("Give me information about PRODUCT")
                 .trainingSentence("I want more information about PRODUCT")
-                .trainingSentence("Have you got PRODUCT?")
-                .trainingSentence("Do you have PRODUCT?")
                 .trainingSentence("I want to see PRODUCT")
                 .trainingSentence("Tell me about PRODUCT")
                 .parameter("product").fromFragment("PRODUCT").entity(any());
 
-        val newOrder = intent("NewOrder")
+        val buyProductIntent = intent("BuyProductIntent")
                 .trainingSentence("I want to buy UNITS PRODUCT")
                 .parameter("units").fromFragment("UNITS").entity(number())
                 .parameter("product").fromFragment("PRODUCT").entity(any());
 
-        val trackOrder = intent("TrackOrder")
-                .trainingSentence("I want to see where is the order ID")
-                .trainingSentence("Where is the order ID?")
-                .trainingSentence("When the order ID will arrive?")
-                .trainingSentence("Yes")
-                .parameter("order").fromFragment("ID").entity(number());
-
-        val getEmployeeMonthlyGoals = intent("GetEmployeeMonthlyGoals")
-                .trainingSentence("I want to see my goals")
-                .trainingSentence("I want to see the progress of my goals")
-                .trainingSentence("I want to see the achievement of my goals");
+        val updateShopCatalogueIntent = intent("UpdateShopCatalogueIntent")
+                .trainingSentence("I want to update the shop catalogue")
+                .trainingSentence("I want to update the catalogue")
+                .trainingSentence("I want to update the price of a product");
 
         ReactPlatform reactPlatform = new ReactPlatform();
         ReactEventProvider reactEventProvider = new ReactEventProvider(reactPlatform);
@@ -58,76 +50,100 @@ public class RBACbot{
          */
         Enforcer enforcer = new Enforcer("./src/RBAC/rbac_model.conf", "./src/RBAC/rbac_policy.csv");
 
-        String role = "employee"; // the role of the user that wants to access a resource
-        //String resource = "getMyEarnings"; // the resource that is going to be accessed
-        String action = "match"; // the operation that the user performs on the resource
+        String testRole = "registered"; // the role of the user that wants to access a resource
 
         /*
          * STATES of the bot
          */
-        val init = state("Init");
-        val greetUser = state("GreetUser");
-        val awaitingInput = state("AwaitingInput");
-        val printProductInformation = state("PrintProductInformation");
-        val createOrder = state("CreateOrder");
-        val printOrderStatus = state("PrintOrderStatus");
-        val printEmployeeMonthlyGoals = state("PrintEmployeeMonthlyGoals");
-        val informAboutPermissions = state("InformAboutPermissions");
+        val initState = state("InitState");
+        val greetUserState = state("GreetUserState");
+        val showMainMenuState = state("showMainMenuState");
+        val findProductState = state("FindProductState");
+        val getBasicProductDetailsState = state("GetBasicProductDetailsState");
+        val getFullProductDetailsState = state("GetFullProductDetailsState");
+        val buyProductState = state("buyProductState");
+        val updateShopCatalogueState = state("UpdateShopCatalogueState");
+        val informAboutPermissionsState = state("InformAboutPermissions");
 
-        init
+        initState
                 .next()
-                .when(eventIs(ReactEventProvider.ClientReady)).moveTo(greetUser);
+                //When the bot starts, the user is automatically greeted
+                .when(eventIs(ReactEventProvider.ClientReady)).moveTo(greetUserState);
 
-        greetUser
+        greetUserState
                 .body(context -> reactPlatform.reply(context, "Hi, welcome to our online shop! How can I help you?"))
                 .next()
-                .moveTo(awaitingInput);
+                //move to showMainMenuState when the role has permission to navigate this transition from the greetUserState
+                .when(c -> enforcer.enforce(testRole,"FromGreetUserStateToShowMainMenuState","navigate")).moveTo(showMainMenuState)
+                //inform about permissions otherwise
+                .when(c -> !enforcer.enforce(testRole,"FromGreetUserStateToShowMainMenuState","navigate")).moveTo(informAboutPermissionsState);
 
-        awaitingInput
+        showMainMenuState
                 .next()
 
-                //move to printProductInformation when the getProductInformation intent is matched && the user has permission to reach this intent
-                .when(intentIs(getProductInformation).and(c -> enforcer.enforce(role,"getProductInformation",action))).moveTo(printProductInformation)
+                //move to findProductState when the FindProduct intent is matched && the role has permission to match this intent
+                .when(intentIs(findProductIntent).and(c -> enforcer.enforce(testRole,"FindProductIntent","match"))).moveTo(findProductState)
+                //inform about permissions otherwise
+                .when(intentIs(findProductIntent).and(c -> !enforcer.enforce(testRole,"FindProductIntent","match"))).moveTo(informAboutPermissionsState)
 
-                //move to createOrder when the newOrder intent is matched && the user has permission to reach this intent
-                .when(intentIs(newOrder).and(c -> enforcer.enforce(role,"newOrder",action))).moveTo(createOrder)
+                //move to buyProductState when the BuyProduct intent is matched && the role has permission to match this intent
+                .when(intentIs(buyProductIntent).and(c -> enforcer.enforce(testRole,"BuyProductIntent","match"))).moveTo(buyProductState)
+                //inform about permissions otherwise
+                .when(intentIs(buyProductIntent).and(c -> !enforcer.enforce(testRole,"BuyProductIntent","match"))).moveTo(informAboutPermissionsState)
 
-                //move to printOrderStatus when the TrackOrder intent is matched && the user has permission to reach this intent
-                .when(intentIs(trackOrder).and(c -> enforcer.enforce(role,"trackOrder",action))).moveTo(printOrderStatus)
+                //move to updateShopCatalogueState when the UpdateShopCatalogue intent is matched && the role has permission to match this intent
+                .when(intentIs(updateShopCatalogueIntent).and(c -> enforcer.enforce(testRole,"UpdateShopCatalogueIntent","match"))).moveTo(updateShopCatalogueState)
+                //inform about permissions otherwise
+                .when(intentIs(updateShopCatalogueIntent).and(c -> !enforcer.enforce(testRole,"UpdateShopCatalogueIntent","match"))).moveTo(informAboutPermissionsState);
 
-                //move to printEmployeeMonthlyGoals when the GetEmployeeMonthlyGoals intent is matched && the user has permission to reach this intent
-                .when(intentIs(getEmployeeMonthlyGoals).and(c -> enforcer.enforce(role,"getEmployeeMonthlyGoals",action))).moveTo(printEmployeeMonthlyGoals)
-
-                //move to informAboutPermissions otherwise (when any intent is matched && the user has not permission to reach it)
-                .when(intentIs(newOrder).and(c -> !enforcer.enforce(role,"newOrder",action)).or(intentIs(getProductInformation).and(c -> !enforcer.enforce(role,"getProductInformation",action))).or(intentIs(trackOrder).and(c -> !enforcer.enforce(role,"trackOrder",action))).or(intentIs(getEmployeeMonthlyGoals).and(c -> !enforcer.enforce(role,"getEmployeeMonthlyGoals",action)))).moveTo(informAboutPermissions);
-
-        printProductInformation
+        findProductState
                 .body(context -> {
-                    reactPlatform.reply(context, "We have the following types of " + context.getIntent().getValue("product") + "...");
+                    reactPlatform.reply(context, "We have the following types of " + context.getIntent().getValue("productType") + "...");
                 })
                 .next()
-                .moveTo(awaitingInput);
+                //move to getBasicProductDetailsState when the GetProductDetails intent is matched && the role has permission to reach the state GetBasicProductDetails
+                .when(intentIs(getProductDetailsIntent).and(c -> enforcer.enforce(testRole,"GetBasicProductDetailsState","reach"))).moveTo(getBasicProductDetailsState)
+                //move to getFullProductDetailsState when the GetProductDetails intent is matched && the role has permission to reach the state GetFullProductDetails
+                .when(intentIs(getProductDetailsIntent).and(c -> enforcer.enforce(testRole,"GetFullProductDetailsState","reach"))).moveTo(getFullProductDetailsState)
+                //move to getFullProductDetailsState otherwise
+                .when(intentIs(getProductDetailsIntent).negate()).moveTo(showMainMenuState);
 
-        createOrder
-                .body(context -> reactPlatform.reply(context, "Order " + new Random(999).nextInt(100) + ": " + context.getIntent().getValue("units") + " units of " + context.getIntent().getValue("product") + " has been ordered. Do you wanna see the order status?"))
+        getBasicProductDetailsState
+                .body(context -> {
+                    reactPlatform.reply(context, "Basic information about " + context.getIntent().getValue("product") + "...");
+                })
                 .next()
-                .when(intentIs(trackOrder)).moveTo(printOrderStatus)
-                .when(intentIs(trackOrder).negate()).moveTo(awaitingInput);
+                //move automatically to the previous state
+                .moveTo(findProductState);
 
-        printOrderStatus
-                .body(context -> reactPlatform.reply(context, "The order " + context.getIntent().getValue("order") + " is in ... right now and it will arrive on ..."))
+        getFullProductDetailsState
+                .body(context -> {
+                    reactPlatform.reply(context, "Full information about " + context.getIntent().getValue("product") + "...");
+                })
                 .next()
-                .moveTo(awaitingInput);
+                //move to buyProductState when the BuyProduct intent is matched && the role has permission to match this intent
+                .when(intentIs(buyProductIntent).and(c -> enforcer.enforce(testRole,"BuyProductIntent","match"))).moveTo(buyProductState)
+                //move to previous state otherwise
+                .when(intentIs(buyProductIntent).negate()).moveTo(findProductState);
 
-        printEmployeeMonthlyGoals
-                .body(context -> reactPlatform.reply(context, "Your monthly goals have been reached by XXX%. Keep working!"))
+        buyProductState
+                .body(context -> reactPlatform.reply(context, "Please, confirm you want to buy " + context.getIntent().getValue("units") + " of " + context.getIntent().getValue("product")))
                 .next()
-                .moveTo(awaitingInput);
+                //move to findProductState once the order has been processed and the role has permission to match this intent
+                .when(intentIs(findProductIntent).and(c -> enforcer.enforce(testRole,"FindProductIntent","match"))).moveTo(findProductState)
+                //move to showMainMenuState otherwise
+                .when(intentIs(findProductIntent).negate()).moveTo(showMainMenuState);
 
-        informAboutPermissions
-                .body(context -> reactPlatform.reply(context, "You do not have permissions to see this information."))
+        updateShopCatalogueState
+                .body(context -> reactPlatform.reply(context, "Please, enter the ID of the product to be updated."))
                 .next()
-                .moveTo(awaitingInput);
+                //move automatically to the main menu
+                .moveTo(showMainMenuState);
+
+        informAboutPermissionsState
+                .body(context -> reactPlatform.reply(context, "Sorry, you don't have permissions to perform this action."))
+                .next()
+                .moveTo(showMainMenuState);
 
 
         val defaultFallback = fallbackState()
@@ -137,7 +153,7 @@ public class RBACbot{
                 .usePlatform(reactPlatform)
                 .listenTo(reactEventProvider)
                 .listenTo(reactIntentProvider)
-                .initState(init)
+                .initState(initState)
                 .defaultFallbackState(defaultFallback);
 
         Configuration botConfiguration = new BaseConfiguration();
